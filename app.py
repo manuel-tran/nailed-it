@@ -5,7 +5,6 @@ import pandas as pd
 import io
 
 st.title("Claude 4.5 Chatbot (Images & Text)")
-print(st.secrets)
 # 1. Initialize the Anthropic Client
 if "ANTHROPIC_API_KEY" in st.secrets:
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -151,63 +150,49 @@ if prompt := st.chat_input("Ask a question..."):
         
         while tool_use_count < max_tool_iterations:
             try:
+                # 1. Call the API
                 with client.messages.stream(
                     model="claude-sonnet-4-5-20250929",
                     max_tokens=1024,
                     messages=st.session_state.messages,
                     tools=tool_definitions,
-                    system="You are a helpful assistant with access to a calculator tool."  # Added system parameter
+                    system="You are a helpful assistant with access to a calculator and a database CSV reader."
                 ) as stream:
                     for text in stream.text_stream:
                         full_text += text
                         message_placeholder.markdown(full_text + "▌")
                     final_message = stream.get_final_message()
 
-            # Add Claude's response to history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": final_message.content
-            })
+                # 2. Finalize text display for this turn
+                message_placeholder.markdown(full_text)
 
-            # Check if Claude wants to use a tool
-            if final_message.stop_reason == "tool_use":
-                # Extract tool details
-                tool_block = next(b for b in final_message.content if b.type == "tool_use")
-                tool_id = tool_block.id
-                
-                with st.status(f"Using tool: {tool_block.name}", state="running"):
-                    # Run the function
-                    if tool_block.name == "calculate":
-                        result = calculate(tool_block.input["expression"])
-                    elif tool_block.name == "read_csv":
-                        result = read_csv()
-                    else:
-                        result = "Error: Unknown tool"
-                
-                # Add tool result to history (so Claude sees it)
+                # 3. Add Claude's response to history
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": final_message.content
                 })
 
-                # Check if Claude wants to use a tool
+                # 4. Check if Claude wants to use a tool
                 if final_message.stop_reason == "tool_use":
                     tool_use_count += 1
                     
-                    # Extract and display tool usage
+                    # Extract tool details
                     tool_blocks = [b for b in final_message.content if b.type == "tool_use"]
                     
                     for tool_block in tool_blocks:
                         tool_id = tool_block.id
+                        tool_name = tool_block.name
+                        tool_input = tool_block.input
                         
                         # Show tool usage to user
-                        st.info(f"🔧 Using tool: **{tool_block.name}** with input: `{tool_block.input}`")
+                        st.info(f"🔧 Using tool: **{tool_name}**")
                         
                         # Run the function
-                        if tool_block.name == "calculate":
-                            result = calculate(tool_block.input["expression"])
-                        else:
-                            result = "Error: Unknown tool"
+                        result = "Error: Unknown tool"
+                        if tool_name == "calculate":
+                            result = calculate(tool_input["expression"])
+                        elif tool_name == "read_csv":
+                            result = read_csv()
                         
                         st.success(f"✅ Result: {result}")
                         
@@ -217,15 +202,15 @@ if prompt := st.chat_input("Ask a question..."):
                             "content": [{
                                 "type": "tool_result",
                                 "tool_use_id": tool_id,
-                                "content": result
+                                "content": str(result)
                             }]
                         })
                     
-                    # Clear the text for next iteration
+                    # Clear the text for next iteration (Claude's interpretation of the result)
                     full_text = ""
+                    # The loop continues here to send the result back to Claude
                 else:
-                    # No more tools needed, we're done
-                    message_placeholder.markdown(full_text)
+                    # No tool used, we are done
                     break
                     
             except Exception as e:
