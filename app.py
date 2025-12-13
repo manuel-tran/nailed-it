@@ -202,6 +202,7 @@ with st.sidebar:
                     "role": "user", 
                     "content": transcription
                 })
+                st.session_state.message_internal_flags.append(False)
                 # Set flag to trigger Claude response
                 st.session_state["trigger_response"] = True
                 # Reset audio input for next recording
@@ -216,6 +217,7 @@ with st.sidebar:
     
     if st.button("Clear Chat"):
         st.session_state.messages = []
+        st.session_state.message_internal_flags = []
         st.session_state.pop("last_uploaded_file", None)
         st.session_state.pop("last_audio", None)
         st.rerun()
@@ -269,6 +271,7 @@ if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file
             {"type": "text", "text": "I have uploaded this image."} 
         ],
     })
+    st.session_state.message_internal_flags.append(False)
     st.rerun()
 
 # 5. Display Chat History
