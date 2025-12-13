@@ -1,7 +1,7 @@
 contract_id,product_id,product_name,unit,quantity,unit_price_eur,line_total_eur,is_c_item,used
-ACME_2025,C001,Screws TX20 4x40,pcs,500,0.08,40.0,True,0
+ACME_2025,C001,Screws TX20 4x40,pcs,500,0.08,40.0,True,10
 ACME_2025,C013,Cable ties 200mm,pcs,300,0.06,18.0,True,0
-ACME_2025,C019,Work gloves size 9,pairs,50,2.5,125.0,True,0
+ACME_2025,C019,Work gloves size 9,pairs,50,2.5,125.0,True,50
 ACME_2025,C025,Painter fleece roll,roll,10,18.0,180.0,True,0
 ACME_2025,C029,Marking spray red,can,20,7.2,144.0,True,0
 ACME_2025,C035,PU foam,can,25,6.5,162.5,True,0
