@@ -1,0 +1,16 @@
+id,name,email,age,department,salary,join_date,status
+1,John Smith,john.smith@example.com,32,Engineering,85000,2020-03-15,Active
+2,Sarah Johnson,sarah.j@example.com,28,Marketing,72000,2021-06-01,Active
+3,Michael Brown,m.brown@example.com,45,Engineering,95000,2018-01-10,Active
+4,Emily Davis,emily.d@example.com,35,Sales,78000,2019-11-20,Active
+5,David Wilson,d.wilson@example.com,29,Engineering,82000,2021-02-14,Active
+6,Lisa Anderson,lisa.a@example.com,41,HR,68000,2017-08-05,Active
+7,James Taylor,j.taylor@example.com,38,Sales,81000,2019-04-12,Active
+8,Maria Garcia,maria.g@example.com,26,Marketing,65000,2022-01-08,Active
+9,Robert Martinez,r.martinez@example.com,33,Engineering,88000,2020-07-22,Active
+10,Jennifer Lee,jennifer.l@example.com,31,HR,70000,2020-09-30,Active
+11,William Thomas,w.thomas@example.com,44,Sales,92000,2018-05-18,Active
+12,Patricia White,p.white@example.com,27,Marketing,67000,2021-10-11,Active
+13,Christopher Harris,c.harris@example.com,36,Engineering,90000,2019-02-25,Active
+14,Linda Clark,linda.c@example.com,39,HR,73000,2018-12-03,Active
+15,Daniel Lewis,d.lewis@example.com,30,Sales,76000,2020-11-16,Active
