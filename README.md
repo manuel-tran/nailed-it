@@ -1,2 +1,0 @@
-# nailed-it
-nAled IT
