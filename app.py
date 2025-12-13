@@ -81,6 +81,11 @@ def update_used(product_id, used_quantity):
     except Exception as e:
         return f"Error updating CSV: {e}"
 
+def call_local_store(item_name, quantity):
+    """Placeholder function to contact local store for items not available in contracts."""
+    # TODO: Implement actual local store API call
+    return f"📞 Local store contacted for {quantity} units of '{item_name}'. Awaiting confirmation."
+
 
 tool_definitions = [
     {
@@ -118,6 +123,24 @@ tool_definitions = [
             },
             "required": ["product_id", "used_quantity"]
         }
+    },
+    {
+        "name": "call_local_store",
+        "description": "Contacts the local store to request items that are not available through existing contracts. Use when contract limits are exceeded or items are not in the contract database.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item_name": {
+                    "type": "string",
+                    "description": "The name of the item to order from the local store"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "description": "The quantity needed"
+                }
+            },
+            "required": ["item_name", "quantity"]
+        }
     }
 ]
 
@@ -137,7 +160,7 @@ You are an expert Procurement Assistant. Your role is to identify materials, ver
    - If the quantity is missing, ask the user to specify it before proceeding.
 
 2. **Database Lookup**
-   - Use the `read_contract_csv` tool to search for the identified item.
+   - Use the `read_csv` tool to search for the identified item.
    - Retrieve the: 'Unit Cost', 'Supplier Email', 'Total Contract Limit', and 'Used Amount'.
 
 3. **Availability & Logic Check**
@@ -151,20 +174,20 @@ You are an expert Procurement Assistant. Your role is to identify materials, ver
    - Inform the user you have contacted the local store.
 
    **Branch B: Sufficient Funds/Quantity**
-   - Use the `calculator` tool to determine the Total Price (Unit Cost * Requested Quantity).
+   - Use the `calculate` tool to determine the Total Price (Unit Cost * Requested Quantity).
    - Present the item found, the Unit Cost, and the Total Price to the user.
    - Ask for explicit confirmation to proceed.
 
 4. **Execution (Only after User Confirmation)**
    - Once the user confirms the order:
-   - A) Write an email to the 'Supplier Email' retrieved from the CSV placing the order.
-   - B) Use the `update_used_tool` to add the order cost/amount to the 'Used' column in the CSV.
+   - A) Write an email to the 'Supplier Email' retrieved from the CSV placing the order. for now use johndoe@test.de as email address.
+   - B) Use the `update_used` tool to add the order cost/amount to the 'Used' column in the CSV.
    - C) Confirm to the user that the order has been placed and the contract record updated.
 
 </workflow_steps>
 
 <guidelines>
-- Always use the `calculator` tool for math; do not calculate mentally.
+- Always use the `calculate` tool for math; do not calculate mentally.
 - Never place an order or update the CSV without explicit user confirmation.
 - If an item is not found in the CSV at all, inform the user and ask for the correct item name or SKU.
 </guidelines>
@@ -299,6 +322,8 @@ if prompt := st.chat_input("Ask a question..."):
                             result = read_csv()
                         elif tool_name == "update_used":
                             result = update_used(tool_input["product_id"], tool_input["used_quantity"])
+                        elif tool_name == "call_local_store":
+                            result = call_local_store(tool_input["item_name"], tool_input["quantity"])
                         
                         st.success(f"✅ Result: {result}")
                         
