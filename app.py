@@ -1,9 +1,11 @@
 import streamlit as st
 import anthropic
 import base64
+import pandas as pd
+import io
 
 st.title("Claude 4.5 Chatbot (Images & Text)")
-
+print(st.secrets)
 # 1. Initialize the Anthropic Client
 if "ANTHROPIC_API_KEY" in st.secrets:
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -11,7 +13,7 @@ else:
     st.error("Missing ANTHROPIC_API_KEY in .streamlit/secrets.toml")
     st.stop()
 
-# --- TOOL DEFINITION ---
+# --- TOOL DEFINITIONS ---
 def calculate(expression):
     """Safely evaluates a mathematical expression."""
     try:
@@ -22,15 +24,44 @@ def calculate(expression):
     except Exception as e:
         return f"Error: {e}"
 
-tool_definitions = [{
-    "name": "calculate",
-    "description": "Evaluates math expressions (e.g., '45 * 12').",
-    "input_schema": {
-        "type": "object",
-        "properties": {"expression": {"type": "string"}},
-        "required": ["expression"]
+def read_csv():
+    """Reads the database CSV file and returns its contents as a formatted string."""
+    try:
+        # Hardcoded path to the database CSV file
+        file_path = "database.csv"
+        df = pd.read_csv(file_path)
+        
+        # Return summary of the CSV
+        result = f"CSV File: {file_path}\n\n"
+        result += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n\n"
+        result += f"Columns: {', '.join(df.columns.tolist())}\n\n"
+        result += f"First 10 rows:\n{df.head(10).to_string()}\n\n"
+        result += f"Data types:\n{df.dtypes.to_string()}\n\n"
+        result += f"Basic statistics:\n{df.describe().to_string()}"
+        return result
+    except Exception as e:
+        return f"Error reading CSV: {e}"
+
+tool_definitions = [
+    {
+        "name": "calculate",
+        "description": "Evaluates math expressions (e.g., '45 * 12').",
+        "input_schema": {
+            "type": "object",
+            "properties": {"expression": {"type": "string"}},
+            "required": ["expression"]
+        }
+    },
+    {
+        "name": "read_csv",
+        "description": "Reads and analyzes the employee database CSV file. Returns column names, shape, first 10 rows, data types, and basic statistics.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
     }
-}]
+]
 
 # 2. Session State for Chat History
 if "messages" not in st.session_state:
@@ -132,7 +163,28 @@ if prompt := st.chat_input("Ask a question..."):
                         message_placeholder.markdown(full_text + "▌")
                     final_message = stream.get_final_message()
 
-                # Add Claude's response to history
+            # Add Claude's response to history
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": final_message.content
+            })
+
+            # Check if Claude wants to use a tool
+            if final_message.stop_reason == "tool_use":
+                # Extract tool details
+                tool_block = next(b for b in final_message.content if b.type == "tool_use")
+                tool_id = tool_block.id
+                
+                with st.status(f"Using tool: {tool_block.name}", state="running"):
+                    # Run the function
+                    if tool_block.name == "calculate":
+                        result = calculate(tool_block.input["expression"])
+                    elif tool_block.name == "read_csv":
+                        result = read_csv()
+                    else:
+                        result = "Error: Unknown tool"
+                
+                # Add tool result to history (so Claude sees it)
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": final_message.content
