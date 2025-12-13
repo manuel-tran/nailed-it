@@ -1,10 +1,15 @@
 import streamlit as st
 import anthropic
-import base64
-import pandas as pd
-import io
+from utils import (
+    calculate,
+    read_csv,
+    get_base64_encoded_image,
+    save_audio_to_mp3,
+    transcribe_audio_with_elevenlabs
+)
 
-st.title("Claude 4.5 Chatbot (Images & Text)")
+st.title("Claude 4.5 Chatbot (Images, Text & Voice)")
+
 # 1. Initialize the Anthropic Client
 if "ANTHROPIC_API_KEY" in st.secrets:
     client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
@@ -144,7 +149,7 @@ tool_definitions = [
     }
 ]
 
-# 2. Session State for Chat History
+# 2. Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -199,24 +204,68 @@ def get_base64_encoded_image(image_file):
 
 # 4. Sidebar for Image Uploads
 with st.sidebar:
-    st.header("Upload Image")
+    st.header("⚙️ Settings")
+    # Developer mode toggle
+    dev_mode = st.toggle("Developer Mode", value=False, help="Show tool usage and technical details")
+    
+    st.divider()
+    
+    st.header("📷 Upload Image")
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     
-    # Optional: Clear chat button
+    st.header("🎤 Voice Memo")
+    
+    # Add a key to the audio input that we can change to reset it
+    if "audio_key" not in st.session_state:
+        st.session_state.audio_key = 0
+    
+    audio_bytes = st.audio_input("Record a voice message", key=f"audio_{st.session_state.audio_key}")
+    
+    # Auto-transcribe when audio is recorded
+    if audio_bytes:
+        # Check if this is a new recording
+        audio_value = audio_bytes.getvalue()
+        
+        if "last_audio_hash" not in st.session_state or st.session_state["last_audio_hash"] != hash(audio_value):
+            # New recording detected
+            st.session_state["last_audio_hash"] = hash(audio_value)
+            
+            with st.spinner("Transcribing with ElevenLabs..."):
+                transcription = transcribe_audio_with_elevenlabs(audio_value)
+            
+            if transcription.startswith("Error:"):
+                st.error(transcription)
+            else:
+                # Add transcription as user message
+                st.session_state.messages.append({
+                    "role": "user", 
+                    "content": transcription
+                })
+                # Set flag to trigger Claude response
+                st.session_state["trigger_response"] = True
+                # Reset audio input for next recording
+                st.session_state.audio_key += 1
+                st.rerun()
+        
+        # Show clear button after recording
+        if st.button("🔄 Clear Recording (Ready for Next)"):
+            st.session_state.audio_key += 1
+            st.session_state.pop("last_audio_hash", None)
+            st.rerun()
+    
     if st.button("Clear Chat"):
         st.session_state.messages = []
         st.session_state.pop("last_uploaded_file", None)
+        st.session_state.pop("last_audio", None)
         st.rerun()
 
-# 5. Handle Upload Logic
+# 4. Handle Image Upload
 if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file.name:
     st.session_state["last_uploaded_file"] = uploaded_file.name
     
-    # Encode the image
     base64_image = get_base64_encoded_image(uploaded_file)
     media_type = uploaded_file.type
     
-    # Add the user message with the image to history
     st.session_state.messages.append({
         "role": "user",
         "content": [
@@ -231,53 +280,60 @@ if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file
             {"type": "text", "text": "I have uploaded this image."} 
         ],
     })
-    
     st.rerun()
 
-# 6. Display Chat History
+# 5. Display Chat History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         if isinstance(message["content"], str):
             st.markdown(message["content"])
         elif isinstance(message["content"], list):
             for block in message["content"]:
-                # Handle both dict and object formats
                 block_type = block.get("type") if isinstance(block, dict) else block.type
                 
                 if block_type == "text":
                     text = block.get("text") if isinstance(block, dict) else block.text
                     st.markdown(text)
                 elif block_type == "image":
-                    # Decode and display the image
                     if isinstance(block, dict):
+                        import base64
                         image_data = base64.b64decode(block["source"]["data"])
                         st.image(image_data, caption="Uploaded Image")
                     else:
                         st.markdown("🖼️ *[Image]*")
-                elif block_type == "tool_use":
+                elif block_type == "tool_use" and dev_mode:
+                    # Only show in developer mode
                     name = block.get("name") if isinstance(block, dict) else block.name
                     st.info(f"🔧 Used tool: **{name}**")
-                elif block_type == "tool_result":
+                elif block_type == "tool_result" and dev_mode:
+                    # Only show in developer mode
                     content = block.get("content") if isinstance(block, dict) else block.content
                     st.success(f"✅ Tool result: {content}")
 
-# 7. User Input & Model Response
-if prompt := st.chat_input("Ask a question..."):
-    # Add user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+# 6. User Input & Model Response
+# Check if we need to trigger a response (from transcription)
+should_respond = st.session_state.pop("trigger_response", False)
+display_user_message = False
 
-    # Assistant Response Loop with tool handling
+if prompt := st.chat_input("Ask a question..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    should_respond = True
+    display_user_message = True
+
+if should_respond:
+    # Display the last user message if it's new and from chat input
+    if display_user_message:
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_text = ""
         tool_use_count = 0
-        max_tool_iterations = 5  # Prevent infinite loops
+        max_tool_iterations = 5
         
         while tool_use_count < max_tool_iterations:
             try:
-                # 1. Call the API
                 with client.messages.stream(
                     model="claude-sonnet-4-5-20250929",
                     max_tokens=1024,
@@ -290,20 +346,15 @@ if prompt := st.chat_input("Ask a question..."):
                         message_placeholder.markdown(full_text + "▌")
                     final_message = stream.get_final_message()
 
-                # 2. Finalize text display for this turn
                 message_placeholder.markdown(full_text)
 
-                # 3. Add Claude's response to history
                 st.session_state.messages.append({
                     "role": "assistant",
                     "content": final_message.content
                 })
 
-                # 4. Check if Claude wants to use a tool
                 if final_message.stop_reason == "tool_use":
                     tool_use_count += 1
-                    
-                    # Extract tool details
                     tool_blocks = [b for b in final_message.content if b.type == "tool_use"]
                     
                     for tool_block in tool_blocks:
@@ -311,10 +362,10 @@ if prompt := st.chat_input("Ask a question..."):
                         tool_name = tool_block.name
                         tool_input = tool_block.input
                         
-                        # Show tool usage to user
-                        st.info(f"🔧 Using tool: **{tool_name}**")
+                        # Only show tool usage in developer mode
+                        if dev_mode:
+                            st.info(f"🔧 Using tool: **{tool_name}**")
                         
-                        # Run the function
                         result = "Error: Unknown tool"
                         if tool_name == "calculate":
                             result = calculate(tool_input["expression"])
@@ -325,9 +376,10 @@ if prompt := st.chat_input("Ask a question..."):
                         elif tool_name == "call_local_store":
                             result = call_local_store(tool_input["item_name"], tool_input["quantity"])
                         
-                        st.success(f"✅ Result: {result}")
+                        # Only show result in developer mode
+                        if dev_mode:
+                            st.success(f"✅ Result: {result}")
                         
-                        # Add tool result to history
                         st.session_state.messages.append({
                             "role": "user",
                             "content": [{
@@ -337,11 +389,8 @@ if prompt := st.chat_input("Ask a question..."):
                             }]
                         })
                     
-                    # Clear the text for next iteration (Claude's interpretation of the result)
                     full_text = ""
-                    # The loop continues here to send the result back to Claude
                 else:
-                    # No tool used, we are done
                     break
                     
             except Exception as e:
