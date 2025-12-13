@@ -133,7 +133,8 @@ def start_voice_conversation(order_list: str, target_price: str, site_address: s
             response_lower = response.lower()
             if "goodbye" in response_lower or "auf wiederhören" in response_lower:
                 try:
-                    print(f"[INFO] End phrase detected: '{response[:50]}...'. Ending session...")
+                    print(f"[INFO] End phrase detected: '{response[:50]}...'. Waiting 10s before ending session...")
+                    time.sleep(10)  # Let the agent finish any buffered speech before closing
                     if conversation_ref["obj"]:
                         conversation_ref["obj"].end_session()
                 except Exception as e:
