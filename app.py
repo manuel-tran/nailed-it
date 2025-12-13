@@ -1,5 +1,6 @@
 import streamlit as st
 import anthropic
+import pandas as pd
 from utils import (
     calculate,
     read_csv,
@@ -7,7 +8,11 @@ from utils import (
     call_local_store,
     get_base64_encoded_image,
     save_audio_to_mp3,
-    transcribe_audio_with_elevenlabs
+    transcribe_audio_with_elevenlabs,
+    send_order_email,
+    get_supplier_info,
+    extract_contract_from_pdf,
+    parse_contract_to_df
 )
 
 from utils import tool_definitions
@@ -40,6 +45,52 @@ if "precheck_in_progress" not in st.session_state:
     st.session_state.precheck_in_progress = False
 
 # Hidden System Prompt (not shown to users)
+def order_product(product_id, quantity):
+    """
+    Wrapper function to handle product ordering via email.
+    Retrieves contract and supplier info, then sends order email.
+    """
+    try:
+        # Read contracts to get product and supplier info
+        contracts_df = pd.read_csv("contracts.csv")
+        product = contracts_df[contracts_df['product_id'] == product_id]
+        
+        if product.empty:
+            return f"Error: Product {product_id} not found in contracts"
+        
+        product_row = product.iloc[0]
+        product_name = product_row['product_name']
+        unit_price = product_row['unit_price_eur']
+        total_price = unit_price * quantity
+        supplier_id = product_row['supplier_id']
+        delivery_days = product_row['delivery_days']
+        
+        # Get supplier info
+        supplier_info = get_supplier_info(supplier_id)
+        
+        if "error" in supplier_info:
+            return supplier_info["error"]
+        
+        supplier_name = supplier_info['supplier_name']
+        supplier_email = supplier_info['contact_email']
+        
+        # Send order email
+        result = send_order_email(
+            to_email=supplier_email,
+            supplier_name=supplier_name,
+            product_name=product_name,
+            quantity=quantity,
+            unit_price=unit_price,
+            total_price=total_price,
+            delivery_days=delivery_days
+        )
+        
+        return result
+        
+    except Exception as e:
+        return f"Error processing order: {e}"
+
+
 SYSTEM_PROMPT = """
 You are an expert Procurement Assistant. Your role is to identify materials, verify contract details, monitor inventory, and manage orders using specific tools. You are professional, efficient, and precise.
 
@@ -168,6 +219,34 @@ with st.sidebar:
         st.session_state.pop("last_uploaded_file", None)
         st.session_state.pop("last_audio", None)
         st.rerun()
+
+    st.divider()
+    st.header("📄 Upload Contract PDF")
+    uploaded_pdf = st.file_uploader("Choose a PDF contract...", type=["pdf"])
+    
+    if uploaded_pdf:
+        if st.button("extract info"):
+            with st.spinner("Parsing contract and updating database..."):
+                contract_text = extract_contract_from_pdf(uploaded_pdf)
+                
+                if contract_text and len(contract_text) > 10:
+                    api_key = st.secrets["ANTHROPIC_API_KEY"]
+                    df_new = parse_contract_to_df(contract_text, api_key)
+                    
+                    if isinstance(df_new, pd.DataFrame):
+                        if df_new.empty:
+                            st.error("⚠️ Parsed data is empty. contracts.csv was NOT updated.")
+                        else:
+                            # Save to contracts.csv
+                            df_new.to_csv("contracts.csv", index=False)
+                            st.success("✅ Database updated from Contract PDF!")
+                        
+                        # Optional: Clear chat to start fresh with new data
+                        # st.session_state.messages = []
+                    else:
+                        st.error(f"Failed to parse data: {df_new}")
+                else:
+                    st.error("⚠️ Failed to text from PDF.")
 
 # 4. Handle Image Upload
 if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file.name:
@@ -306,6 +385,8 @@ if should_respond:
                                 # Show only the first line (summary) without the full transcript
                                 summary = result.split("\n\nTranscript:")[0] if "\n\nTranscript:" in result else result
                                 st.success(f"✅ Result: {summary}")
+                        elif tool_name == "send_order_email":
+                            result = order_product(tool_input["product_id"], tool_input["quantity"])
                         else:
                             # Only show result in developer mode
                             if dev_mode:
