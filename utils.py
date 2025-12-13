@@ -131,11 +131,45 @@ def update_used(product_id, used_quantity):
     except Exception as e:
         return f"Error updating CSV: {e}"
 
-def call_local_store(item_name, quantity):
-    """Placeholder function to contact local store for items not available in contracts."""
-    # TODO: Implement actual local store API call
-    return f"📞 Local store contacted for {quantity} units of '{item_name}'. Awaiting confirmation."
-
+def call_local_store(item_name: str, quantity: int) -> str:
+    """
+    Contact local store via ElevenLabs conversational AI agent for items not available in contracts.
+    
+    Args:
+        item_name: Name of the item to order
+        quantity: Quantity of items needed
+        
+    Returns:
+        Confirmation message
+    """
+    try:
+        from elevenlabs_tools import start_voice_conversation
+        
+        # Prepare order details for the agent
+        order_list = f"{quantity} x {item_name}"
+        target_price = "Best available price"
+        site_address = "Main Street 12, Munich"  # Could be made dynamic
+        vendor_name = "Local Hardware Store"
+        
+        # Start the voice conversation with the agent
+        print(f"🎤 Initiating voice call for {quantity} units of '{item_name}'...")
+        
+        conversation_id = start_voice_conversation(
+            order_list=order_list,
+            target_price=target_price,
+            site_address=site_address,
+            vendor_name=vendor_name
+        )
+        
+        if conversation_id:
+            return f"📞 Voice call completed for {quantity} units of '{item_name}'. Conversation ID: {conversation_id}"
+        else:
+            return f"📞 Voice call initiated for {quantity} units of '{item_name}' but was interrupted."
+            
+    except Exception as e:
+        # Fallback to placeholder if voice call fails
+        return f"📞 Local store contact attempted for {quantity} units of '{item_name}'. (Error: {str(e)[:100]})"
+    
 def get_base64_encoded_image(image_file):
     """Converts an uploaded image file to base64 string."""
     return base64.b64encode(image_file.getvalue()).decode('utf-8')
