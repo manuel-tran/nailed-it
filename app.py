@@ -105,11 +105,44 @@ for message in st.session_state.messages:
                     st.success(f"✅ Tool result: {content}")
 
 # 7. User Input & Model Response
-if prompt := st.chat_input("Ask a question..."):
+# Add option to attach image in chat
+col1, col2 = st.columns([4, 1])
+with col1:
+    prompt = st.chat_input("Ask a question...")
+with col2:
+    chat_image = st.file_uploader("📎", type=["jpg", "jpeg", "png"], label_visibility="collapsed", key="chat_uploader")
+
+if prompt or chat_image:
+    # Build the message content
+    user_content = []
+    
+    # Add image if uploaded
+    if chat_image:
+        base64_image = get_base64_encoded_image(chat_image)
+        user_content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": chat_image.type,
+                "data": base64_image,
+            }
+        })
+    
+    # Add text if provided
+    if prompt:
+        user_content.append({"type": "text", "text": prompt})
+    else:
+        user_content.append({"type": "text", "text": "What do you see in this image?"})
+    
     # Add user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.messages.append({"role": "user", "content": user_content})
+    
+    # Display the user message
     with st.chat_message("user"):
-        st.markdown(prompt)
+        if chat_image:
+            st.image(chat_image, caption="Uploaded Image", width=300)
+        if prompt:
+            st.markdown(prompt)
 
     # Assistant Response Loop with tool handling
     with st.chat_message("assistant"):
