@@ -335,16 +335,13 @@ def get_supplier_info(supplier_id):
     Returns:
         dict: Supplier information or error message
     """
-    try:
-        df = pd.read_csv("suppliers.csv")
-        supplier = df[df['supplier_id'] == supplier_id]
-        
-        if supplier.empty:
-            return {"error": f"Supplier {supplier_id} not found"}
-        
-        return supplier.iloc[0].to_dict()
-    except Exception as e:
-        return {"error": f"Error reading supplier data: {e}"}
+    df = pd.read_csv("suppliers.csv")
+    supplier = df[df['supplier_id'] == supplier_id]
+    
+    if supplier.empty:
+        return {"error": f"Supplier {supplier_id} not found"}
+    
+    return supplier.iloc[0].to_dict()
 
 
 def send_order_email(to_email, supplier_name, product_name, quantity, unit_price, total_price, delivery_days):
@@ -363,24 +360,24 @@ def send_order_email(to_email, supplier_name, product_name, quantity, unit_price
     Returns:
         str: Success or error message
     """
-    try:
-        # Get email credentials from secrets
-        if "SMTP_EMAIL" not in st.secrets or "SMTP_PASSWORD" not in st.secrets:
-            return "Error: Email credentials not configured in secrets.toml"
-        
-        sender_email = st.secrets["SMTP_EMAIL"]
-        sender_password = st.secrets["SMTP_PASSWORD"]
-        smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
-        smtp_port = st.secrets.get("SMTP_PORT", 587)
-        
-        # Create email
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = to_email
-        msg['Subject'] = f"Purchase Order - {product_name}"
-        
-        # Email body
-        body = f"""
+
+    # Get email credentials from secrets
+    if "SMTP_EMAIL" not in st.secrets or "SMTP_PASSWORD" not in st.secrets:
+        return "Error: Email credentials not configured in secrets.toml"
+    
+    sender_email = st.secrets["SMTP_EMAIL"]
+    sender_password = st.secrets["SMTP_PASSWORD"]
+    smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = st.secrets.get("SMTP_PORT", 587)
+    
+    # Create email
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = f"Purchase Order - {product_name}"
+    
+    # Email body
+    body = f"""
 Dear {supplier_name},
 
 We would like to place the following order:
@@ -402,18 +399,16 @@ Procurement Department
 Order Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 """
         
-        msg.attach(MIMEText(body, 'plain'))
-        
-        # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-        
-        return f"✅ Order email sent successfully to {to_email} (from {sender_email})"
-        
-    except Exception as e:
-        return f"Error sending email: {str(e)}"
+    msg.attach(MIMEText(body, 'plain'))
+    
+    # Send email
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+    
+    return f"✅ Order email sent successfully to {to_email} (from {sender_email})"
+
 
 
 def extract_contract_from_pdf(pdf_file):
