@@ -3,10 +3,14 @@ import anthropic
 from utils import (
     calculate,
     read_csv,
+    update_used,
+    call_local_store,
     get_base64_encoded_image,
     save_audio_to_mp3,
     transcribe_audio_with_elevenlabs
 )
+
+from utils import tool_definitions
 
 st.title("Claude 4.5 Chatbot (Images, Text & Voice)")
 
@@ -17,138 +21,13 @@ else:
     st.error("Missing ANTHROPIC_API_KEY in .streamlit/secrets.toml")
     st.stop()
 
-# --- TOOL DEFINITIONS ---
-def calculate(expression):
-    """Safely evaluates a mathematical expression."""
-    try:
-        # Limit valid characters for safety
-        if not all(c in "0123456789+-*/(). " for c in expression):
-            return "Error: Invalid characters"
-        return str(eval(expression))
-    except Exception as e:
-        return f"Error: {e}"
-
-def read_csv():
-    """Reads the database CSV file and returns its contents as a formatted string."""
-    try:
-        # Hardcoded path to the database CSV file
-        file_path = "contracts.csv"
-        df = pd.read_csv(file_path)
-        
-        # Return summary of the CSV
-        result = f"CSV File: {file_path}\n\n"
-        result += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n\n"
-        result += f"Columns: {', '.join(df.columns.tolist())}\n\n"
-        result += f"First 10 rows:\n{df.head(10).to_string()}\n\n"
-        result += f"Data types:\n{df.dtypes.to_string()}\n\n"
-        result += f"Basic statistics:\n{df.describe().to_string()}"
-        return result
-    except Exception as e:
-        return f"Error reading CSV: {e}"
-
-def update_used(product_id, used_quantity):
-    """Updates the 'used' column for a specific product in contracts.csv."""
-    try:
-        file_path = "contracts.csv"
-        df = pd.read_csv(file_path)
-        
-        # Find the product by product_id
-        if product_id not in df['product_id'].values:
-            return f"Error: Product ID '{product_id}' not found in database"
-        
-        # Get the row index
-        idx = df[df['product_id'] == product_id].index[0]
-        
-        # Get current values
-        current_used = df.loc[idx, 'used']
-        total_quantity = df.loc[idx, 'quantity']
-        new_used = current_used + used_quantity
-        
-        # Check if we're exceeding available quantity
-        if new_used > total_quantity:
-            available = total_quantity - current_used
-            return f"Error: Cannot use {used_quantity} units. Only {available} units available (total: {total_quantity}, already used: {current_used})"
-        
-        # Update the used column
-        df.loc[idx, 'used'] = new_used
-        
-        # Save back to CSV
-        df.to_csv(file_path, index=False)
-        
-        # Return success message with details
-        product_name = df.loc[idx, 'product_name']
-        remaining = total_quantity - new_used
-        result = f"✅ Updated {product_name} (ID: {product_id})\n"
-        result += f"Used: {used_quantity} units\n"
-        result += f"Total used: {new_used}/{total_quantity}\n"
-        result += f"Remaining: {remaining} units"
-        return result
-    except Exception as e:
-        return f"Error updating CSV: {e}"
-
-def call_local_store(item_name, quantity):
-    """Placeholder function to contact local store for items not available in contracts."""
-    # TODO: Implement actual local store API call
-    return f"📞 Local store contacted for {quantity} units of '{item_name}'. Awaiting confirmation."
-
-
-tool_definitions = [
-    {
-        "name": "calculate",
-        "description": "Evaluates math expressions (e.g., '45 * 12').",
-        "input_schema": {
-            "type": "object",
-            "properties": {"expression": {"type": "string"}},
-            "required": ["expression"]
-        }
-    },
-    {
-        "name": "read_csv",
-        "description": "Reads and analyzes the contracts database CSV file. Returns column names, shape, first 10 rows, data types, and basic statistics.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    },
-    {
-        "name": "update_used",
-        "description": "Updates the 'used' column for a product in contracts.csv. Validates that the requested quantity doesn't exceed available inventory. Use this when a user orders or consumes items.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "product_id": {
-                    "type": "string",
-                    "description": "The product ID (e.g., 'C001', 'C013')"
-                },
-                "used_quantity": {
-                    "type": "integer",
-                    "description": "The quantity to add to the 'used' column (positive number)"
-                }
-            },
-            "required": ["product_id", "used_quantity"]
-        }
-    },
-    {
-        "name": "call_local_store",
-        "description": "Contacts the local store to request items that are not available through existing contracts. Use when contract limits are exceeded or items are not in the contract database.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "item_name": {
-                    "type": "string",
-                    "description": "The name of the item to order from the local store"
-                },
-                "quantity": {
-                    "type": "integer",
-                    "description": "The quantity needed"
-                }
-            },
-            "required": ["item_name", "quantity"]
-        }
-    }
-]
-
+# Initialize ElevenLabs
+if "ELEVENLABS_API_KEY" in st.secrets:
+    from elevenlabs_tools import init_elevenlabs
+    init_elevenlabs(st.secrets["ELEVENLABS_API_KEY"])
+else:
+    st.warning("Missing ELEVENLABS_API_KEY - transcription will not work")
+    
 # 2. Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -197,10 +76,6 @@ You are an expert Procurement Assistant. Your role is to identify materials, ver
 - If an item is not found in the CSV at all, inform the user and ask for the correct item name or SKU.
 </guidelines>
 """
-
-# 3. Helper: Convert Uploaded File to Base64
-def get_base64_encoded_image(image_file):
-    return base64.b64encode(image_file.getvalue()).decode('utf-8')
 
 # 4. Sidebar for Image Uploads
 with st.sidebar:
