@@ -4,6 +4,19 @@ Utility functions for the Claude Streamlit chatbot
 import base64
 import pandas as pd
 import io
+import anthropic
+import json
+from elevenlabs_call import start_voice_conversation
+from elevenlabs_tools import speech_to_text
+import tempfile
+import os
+import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
+import streamlit as st
+import pypdf
 
 tool_definitions = [
     {
@@ -201,7 +214,7 @@ def call_local_store(item_name: str, quantity: int) -> str:
     """
     try:
         # Use the wrapper that returns transcript details
-        from elevenlabs_call import start_voice_conversation
+        
         
         # Look up contract price for the item to use as target price
         target_price = "Best available price"  # default fallback
@@ -274,10 +287,7 @@ def transcribe_audio_with_elevenlabs(audio_bytes):
         str: Transcribed text or error message
     """
     try:
-        from elevenlabs_tools import speech_to_text
-        import tempfile
-        import os
-        import time
+
         
         # Save audio bytes to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
@@ -354,12 +364,6 @@ def send_order_email(to_email, supplier_name, product_name, quantity, unit_price
         str: Success or error message
     """
     try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        import streamlit as st
-        
         # Get email credentials from secrets
         if "SMTP_EMAIL" not in st.secrets or "SMTP_PASSWORD" not in st.secrets:
             return "Error: Email credentials not configured in secrets.toml"
@@ -423,7 +427,7 @@ def extract_contract_from_pdf(pdf_file):
         str: Extracted text
     """
     try:
-        import pypdf
+
         
         pdf_reader = pypdf.PdfReader(pdf_file)
         text = ""
@@ -447,8 +451,6 @@ def parse_contract_to_df(text, api_key):
         pd.DataFrame: Parsed contract data
     """
     try:
-        import anthropic
-        import json
         
         client = anthropic.Anthropic(api_key=api_key)
         
