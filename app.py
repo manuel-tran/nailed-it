@@ -83,7 +83,6 @@ with st.sidebar:
         st.rerun()
 
 # 5. Handle Upload Logic
-# We check if a file is present and if we haven't already processed this specific file
 if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file.name:
     st.session_state["last_uploaded_file"] = uploaded_file.name
     
@@ -103,56 +102,66 @@ if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file
                     "data": base64_image,
                 },
             },
-            # We add a hidden text block so the model knows context, 
-            # or we can wait for the user to type a question below.
             {"type": "text", "text": "I have uploaded this image."} 
         ],
     })
     
-    # Force a rerun to show the image immediately in the chat window
     st.rerun()
 
 # 6. Display Chat History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        # The content can be a string (text only) or a list (multimodal)
         if isinstance(message["content"], str):
             st.markdown(message["content"])
         elif isinstance(message["content"], list):
             for block in message["content"]:
-                if block["type"] == "text":
-                    st.markdown(block["text"])
-                elif block["type"] == "image":
-                    # We can't easily re-render the base64 string as an image here 
-                    # without decoding, so we usually just show a marker or 
-                    # the last uploaded image if it's still in the uploader.
-                    st.markdown("🖼️ *[Image Uploaded]*")
-                    
+                # Handle both dict and object formats
+                block_type = block.get("type") if isinstance(block, dict) else block.type
+                
+                if block_type == "text":
+                    text = block.get("text") if isinstance(block, dict) else block.text
+                    st.markdown(text)
+                elif block_type == "image":
+                    # Decode and display the image
+                    if isinstance(block, dict):
+                        image_data = base64.b64decode(block["source"]["data"])
+                        st.image(image_data, caption="Uploaded Image")
+                    else:
+                        st.markdown("🖼️ *[Image]*")
+                elif block_type == "tool_use":
+                    name = block.get("name") if isinstance(block, dict) else block.name
+                    st.info(f"🔧 Used tool: **{name}**")
+                elif block_type == "tool_result":
+                    content = block.get("content") if isinstance(block, dict) else block.content
+                    st.success(f"✅ Tool result: {content}")
+
 # 7. User Input & Model Response
-# --- MAIN CHAT LOOP WITH TOOLS ---
 if prompt := st.chat_input("Ask a question..."):
-    # 1. Add user message
+    # Add user message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Assistant Response Loop
+    # Assistant Response Loop with tool handling
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_text = ""
+        tool_use_count = 0
+        max_tool_iterations = 5  # Prevent infinite loops
         
-        # Loop required because Claude might use multiple tools in a row
-        while True:
-            with client.messages.stream(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=1024,
-                messages=st.session_state.messages,
-                tools=tool_definitions  # <--- PASS TOOLS HERE
-            ) as stream:
-                for text in stream.text_stream:
-                    full_text += text
-                    message_placeholder.markdown(full_text + "▌")
-                final_message = stream.get_final_message()
+        while tool_use_count < max_tool_iterations:
+            try:
+                with client.messages.stream(
+                    model="claude-sonnet-4-5-20250929",
+                    max_tokens=1024,
+                    messages=st.session_state.messages,
+                    tools=tool_definitions,
+                    system="You are a helpful assistant with access to a calculator tool."  # Added system parameter
+                ) as stream:
+                    for text in stream.text_stream:
+                        full_text += text
+                        message_placeholder.markdown(full_text + "▌")
+                    final_message = stream.get_final_message()
 
             # Add Claude's response to history
             st.session_state.messages.append({
@@ -177,15 +186,51 @@ if prompt := st.chat_input("Ask a question..."):
                 
                 # Add tool result to history (so Claude sees it)
                 st.session_state.messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_id,
-                        "content": result
-                    }]
+                    "role": "assistant",
+                    "content": final_message.content
                 })
-                # The while loop continues, sending the result back to Claude automatically
-            else:
-                # No more tools needed, we are done
-                message_placeholder.markdown(full_text)
+
+                # Check if Claude wants to use a tool
+                if final_message.stop_reason == "tool_use":
+                    tool_use_count += 1
+                    
+                    # Extract and display tool usage
+                    tool_blocks = [b for b in final_message.content if b.type == "tool_use"]
+                    
+                    for tool_block in tool_blocks:
+                        tool_id = tool_block.id
+                        
+                        # Show tool usage to user
+                        st.info(f"🔧 Using tool: **{tool_block.name}** with input: `{tool_block.input}`")
+                        
+                        # Run the function
+                        if tool_block.name == "calculate":
+                            result = calculate(tool_block.input["expression"])
+                        else:
+                            result = "Error: Unknown tool"
+                        
+                        st.success(f"✅ Result: {result}")
+                        
+                        # Add tool result to history
+                        st.session_state.messages.append({
+                            "role": "user",
+                            "content": [{
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": result
+                            }]
+                        })
+                    
+                    # Clear the text for next iteration
+                    full_text = ""
+                else:
+                    # No more tools needed, we're done
+                    message_placeholder.markdown(full_text)
+                    break
+                    
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
                 break
+        
+        if tool_use_count >= max_tool_iterations:
+            st.warning("⚠️ Maximum tool use iterations reached.")
