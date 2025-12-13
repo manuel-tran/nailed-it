@@ -146,9 +146,22 @@ def call_local_store(item_name: str, quantity: int) -> str:
         # Use the wrapper that returns transcript details
         from elevenlabs_call import start_voice_conversation
         
+        # Look up contract price for the item to use as target price
+        target_price = "Best available price"  # default fallback
+        try:
+            file_path = "contracts.csv"
+            df = pd.read_csv(file_path)
+            # Try to find the item by name (case-insensitive partial match)
+            matching_rows = df[df['product_name'].str.contains(item_name, case=False, na=False)]
+            if not matching_rows.empty:
+                unit_price = matching_rows.iloc[0]['unit_price_eur']
+                target_price = f"{unit_price:.2f} EUR per unit"
+                print(f"[INFO] Found contract price for '{item_name}': {target_price}")
+        except Exception as e:
+            print(f"[WARN] Could not lookup contract price: {e}")
+        
         # Prepare order details for the agent
         order_list = f"{quantity} x {item_name}"
-        target_price = "Best available price"
         site_address = "Main Street 12, Munich"  # Could be made dynamic
         vendor_name = "Local Hardware Store"
         
@@ -168,9 +181,9 @@ def call_local_store(item_name: str, quantity: int) -> str:
 
         if success and conversation_id:
             msg = f"📞 Voice call completed for {quantity} units of '{item_name}'. Conversation ID: {conversation_id}"
+            # Keep transcript in tool result for Claude to process, but don't display in UI
             if transcript:
-                # Include transcript in the returned message so it appears in chat history
-                msg += f"\n\n🗒️ Transcript:\n{transcript}"
+                msg += f"\n\nTranscript: {transcript}"
             return msg
         else:
             return f"📞 Voice call initiated for {quantity} units of '{item_name}' but was interrupted."

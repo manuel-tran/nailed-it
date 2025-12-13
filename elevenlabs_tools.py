@@ -129,26 +129,28 @@ def start_voice_conversation(order_list: str, target_price: str, site_address: s
         def on_agent_response(response):
             print(f"Agent: {response}")
             last_activity["time"] = time.time()
-            # Auto-end only on 'goodbye'
-            if "goodbye" in response.lower():
+            # Auto-end on 'goodbye' or 'auf wiederhören'
+            response_lower = response.lower()
+            if "goodbye" in response_lower or "auf wiederhören" in response_lower:
                 try:
-                    print(f"[INFO] Goodbye detected: '{response[:50]}...'. Ending session...")
+                    print(f"[INFO] End phrase detected: '{response[:50]}...'. Ending session...")
                     if conversation_ref["obj"]:
                         conversation_ref["obj"].end_session()
                 except Exception as e:
-                    print(f"[WARN] Failed to end session on goodbye: {e}")
+                    print(f"[WARN] Failed to end session on end phrase: {e}")
         
         def on_user_transcript(transcript):
             print(f"You: {transcript}")
             last_activity["time"] = time.time()
-            # User says goodbye
-            if "goodbye" in transcript.lower():
+            # User says goodbye or auf wiederhören
+            transcript_lower = transcript.lower()
+            if "goodbye" in transcript_lower or "auf wiederhören" in transcript_lower:
                 try:
-                    print(f"[INFO] User said goodbye. Ending session...")
+                    print(f"[INFO] User said goodbye/auf wiederhören. Ending session...")
                     if conversation_ref["obj"]:
                         conversation_ref["obj"].end_session()
                 except Exception as e:
-                    print(f"[WARN] Failed to end session on user goodbye: {e}")
+                    print(f"[WARN] Failed to end session on user end phrase: {e}")
         
         # Initialize conversation using config
         conversation = Conversation(
