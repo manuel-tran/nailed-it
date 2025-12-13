@@ -143,7 +143,8 @@ def call_local_store(item_name: str, quantity: int) -> str:
         Confirmation message
     """
     try:
-        from elevenlabs_tools import start_voice_conversation
+        # Use the wrapper that returns transcript details
+        from elevenlabs_call import start_voice_conversation
         
         # Prepare order details for the agent
         order_list = f"{quantity} x {item_name}"
@@ -154,15 +155,23 @@ def call_local_store(item_name: str, quantity: int) -> str:
         # Start the voice conversation with the agent
         print(f"🎤 Initiating voice call for {quantity} units of '{item_name}'...")
         
-        conversation_id = start_voice_conversation(
+        conversation_info = start_voice_conversation(
             order_list=order_list,
             target_price=target_price,
             site_address=site_address,
             vendor_name=vendor_name
         )
         
-        if conversation_id:
-            return f"📞 Voice call completed for {quantity} units of '{item_name}'. Conversation ID: {conversation_id}"
+        conversation_id = conversation_info.get("conversation_id") if isinstance(conversation_info, dict) else conversation_info
+        transcript = conversation_info.get("transcript", "") if isinstance(conversation_info, dict) else ""
+        success = conversation_info.get("success", bool(conversation_id)) if isinstance(conversation_info, dict) else bool(conversation_id)
+
+        if success and conversation_id:
+            msg = f"📞 Voice call completed for {quantity} units of '{item_name}'. Conversation ID: {conversation_id}"
+            if transcript:
+                # Include transcript in the returned message so it appears in chat history
+                msg += f"\n\n🗒️ Transcript:\n{transcript}"
+            return msg
         else:
             return f"📞 Voice call initiated for {quantity} units of '{item_name}' but was interrupted."
             

@@ -9,6 +9,11 @@ def init_elevenlabs(api_key: str):
     global client
     client = ElevenLabs(api_key=api_key)
 
+def get_client():
+    """Accessor for the initialized ElevenLabs client."""
+    global client
+    return client
+
 # Tool definition for Claude
 speech_to_text_tool_definition = {
     "name": "speech_to_text",
@@ -95,7 +100,7 @@ def start_voice_conversation(order_list: str, target_price: str, site_address: s
         raise Exception("ElevenLabs client not initialized.")
     
     try:
-        from elevenlabs.conversational_ai.conversation import Conversation
+        from elevenlabs.conversational_ai.conversation import Conversation, ConversationInitiationData
         from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInterface
         
         print("--- Starting Conversation ---")
@@ -106,25 +111,104 @@ def start_voice_conversation(order_list: str, target_price: str, site_address: s
         print("Speak into your microphone. Press Ctrl+C to stop.")
         
         print("\n[DEBUG] Creating Conversation object...")
-        # Initialize conversation with client parameter
+        # Build initiation config with dynamic variables per ElevenLabs SDK docs
+        config = ConversationInitiationData(
+            dynamic_variables={
+                "order_list": order_list,
+                "target_price": target_price,
+                "site_address": site_address,
+                "vendor_name": vendor_name,
+            }
+        )
+        
+        # Track activity and auto-end on keywords/silence
+        import time
+        last_activity = {"time": time.time()}
+        conversation_ref = {"obj": None}
+        
+        def on_agent_response(response):
+            print(f"Agent: {response}")
+            last_activity["time"] = time.time()
+            # Auto-end only on 'goodbye'
+            if "goodbye" in response.lower():
+                try:
+                    print(f"[INFO] Goodbye detected: '{response[:50]}...'. Ending session...")
+                    if conversation_ref["obj"]:
+                        conversation_ref["obj"].end_session()
+                except Exception as e:
+                    print(f"[WARN] Failed to end session on goodbye: {e}")
+        
+        def on_user_transcript(transcript):
+            print(f"You: {transcript}")
+            last_activity["time"] = time.time()
+            # User says goodbye
+            if "goodbye" in transcript.lower():
+                try:
+                    print(f"[INFO] User said goodbye. Ending session...")
+                    if conversation_ref["obj"]:
+                        conversation_ref["obj"].end_session()
+                except Exception as e:
+                    print(f"[WARN] Failed to end session on user goodbye: {e}")
+        
+        # Initialize conversation using config
         conversation = Conversation(
-            client=client,
-            agent_id=AGENT_ID,
+            client,
+            AGENT_ID,
+            config=config,
             requires_auth=True,
             audio_interface=DefaultAudioInterface(),
-            callback_agent_response=lambda response: print(f"Agent: {response}"),
-            callback_user_transcript=lambda transcript: print(f"You: {transcript}"),
+            callback_agent_response=on_agent_response,
+            callback_user_transcript=on_user_transcript,
         )
+        conversation_ref["obj"] = conversation
         print("[DEBUG] Conversation object created successfully")
         
         # Start the session
         print("[DEBUG] Starting session...")
         conversation.start_session()
-        print("[DEBUG] Session started, waiting for session end...")
+        print("[DEBUG] Session started, monitoring for activity...")
         
         try:
+            import time
+            import threading
+            silence_timeout = 60  # seconds
+            session_ended = {"value": False}
+            conversation_id = None
+            
+            # Background thread to monitor silence
+            def silence_monitor():
+                while not session_ended["value"]:
+                    time.sleep(2)
+                    elapsed = time.time() - last_activity["time"]
+                    if elapsed > silence_timeout and not session_ended["value"]:
+                        try:
+                            print(f"[INFO] {silence_timeout}s silence detected. Ending session...")
+                            conversation.end_session()
+                            session_ended["value"] = True
+                        except Exception as e:
+                            print(f"[WARN] Silence monitor end_session failed: {e}")
+                        break
+            
+            monitor_thread = threading.Thread(target=silence_monitor, daemon=True)
+            monitor_thread.start()
+            
+            # Wait for session end (either natural or triggered by callbacks/monitor)
             conversation_id = conversation.wait_for_session_end()
+            session_ended["value"] = True
+            
+            # Fallback if attribute exists on object instead
+            if not conversation_id and hasattr(conversation, "conversation_id"):
+                conversation_id = conversation.conversation_id
             print(f"[DEBUG] Conversation ended. ID: {conversation_id}")
+
+            # Fetch the full conversation object from the API for details
+            try:
+                full_conversation = client.conversational_ai.conversations.get(conversation_id)
+                print(f"Duration: {getattr(full_conversation, 'duration_secs', 'n/a')}")
+                print(f"Transcript: {getattr(full_conversation, 'transcript', '')}")
+            except Exception as e:
+                print(f"[WARN] Failed to fetch full conversation details: {e}")
+
             return conversation_id
         except KeyboardInterrupt:
             print("[DEBUG] KeyboardInterrupt detected")

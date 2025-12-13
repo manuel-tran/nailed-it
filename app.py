@@ -251,10 +251,25 @@ if should_respond:
                             result = update_used(tool_input["product_id"], tool_input["used_quantity"])
                         elif tool_name == "call_local_store":
                             result = call_local_store(tool_input["item_name"], tool_input["quantity"])
-                        
-                        # Only show result in developer mode
-                        if dev_mode:
-                            st.success(f"✅ Result: {result}")
+                            # Extract and display transcript if present
+                            if "🗒️ Transcript:" in result:
+                                parts = result.split("🗒️ Transcript:", 1)
+                                summary = parts[0].strip()
+                                transcript = parts[1].strip() if len(parts) > 1 else ""
+                                # Show summary in tool result
+                                if dev_mode:
+                                    st.success(f"✅ Result: {summary}")
+                                # Display transcript as assistant message for visibility
+                                if transcript:
+                                    st.info(f"📞 Call Transcript:\n{transcript}")
+                            else:
+                                # Only show result in developer mode
+                                if dev_mode:
+                                    st.success(f"✅ Result: {result}")
+                        else:
+                            # Only show result in developer mode
+                            if dev_mode:
+                                st.success(f"✅ Result: {result}")
                         
                         st.session_state.messages.append({
                             "role": "user",
