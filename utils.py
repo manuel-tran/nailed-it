@@ -17,10 +17,16 @@ tool_definitions = [
     },
     {
         "name": "read_csv",
-        "description": "Reads and analyzes the contracts database CSV file. Returns column names, shape, first 10 rows, data types, and basic statistics.",
+        "description": "Reads and analyzes CSV data. Default is contracts.csv; set dataset='inventory' to inspect inventory levels.",
         "input_schema": {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "dataset": {
+                    "type": "string",
+                    "description": "Which dataset to load: 'contracts' (default) or 'inventory'",
+                    "enum": ["contracts", "inventory"]
+                }
+            },
             "required": []
         }
     },
@@ -73,21 +79,54 @@ def calculate(expression):
         return f"Error: {e}"
 
 
-def read_csv():
-    """Reads the database CSV file and returns its contents as a formatted string."""
+def read_csv(dataset: str = "contracts"):
+    """Reads the contracts or inventory CSV file and returns a formatted summary."""
     try:
-        # Hardcoded path to the database CSV file
-        file_path = "contracts.csv"
+        dataset = (dataset or "contracts").strip().lower()
+        file_map = {
+            "contracts": "contracts.csv",
+            "inventory": "inventory.csv",
+        }
+        if dataset not in file_map:
+            return f"Error: Unknown dataset '{dataset}'. Use 'contracts' or 'inventory'."
+
+        file_path = file_map[dataset]
         df = pd.read_csv(file_path)
-        
-        # Return summary of the CSV
-        result = f"CSV File: {file_path}\n\n"
-        result += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n\n"
-        result += f"Columns: {', '.join(df.columns.tolist())}\n\n"
-        result += f"First 10 rows:\n{df.head(10).to_string()}\n\n"
-        result += f"Data types:\n{df.dtypes.to_string()}\n\n"
-        result += f"Basic statistics:\n{df.describe().to_string()}"
-        return result
+        df.columns = [c.strip() for c in df.columns]
+
+        result = [f"CSV File: {file_path}", ""]
+        result.append(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns")
+        result.append("")
+        result.append(f"Columns: {', '.join(df.columns.tolist())}")
+        result.append("")
+        result.append("First 10 rows:")
+        result.append(df.head(10).to_string())
+        result.append("")
+        result.append("Data types:")
+        result.append(df.dtypes.to_string())
+
+        if dataset == "inventory":
+            # Optional storage-based stock assessment if column exists
+            storage_col = "storage" if "storage" in df.columns else None
+            low_threshold = 5
+            high_threshold = 90
+
+            if storage_col:
+                df[storage_col] = pd.to_numeric(df[storage_col], errors="coerce")
+                low_stock = df[df[storage_col] < low_threshold]
+                high_stock = df[df[storage_col] > high_threshold]
+
+                result.append("")
+                result.append(f"Low storage (<{low_threshold}%): {len(low_stock)} items")
+                if not low_stock.empty:
+                    result.append(low_stock[[col for col in df.columns if col in ["product_id", "product_name", "quantity", storage_col]]].to_string(index=False))
+
+                result.append("")
+                result.append(f"High storage (>{high_threshold}%): {len(high_stock)} items")
+                if not high_stock.empty:
+                    result.append(high_stock[[col for col in df.columns if col in ["product_id", "product_name", "quantity", storage_col]]].to_string(index=False))
+
+        return "\n".join(result)
     except Exception as e:
         return f"Error reading CSV: {e}"
 

@@ -1,0 +1,9 @@
+contract_id,product_id,product_name,unit,quantity, storage (% used)
+ACME_2025,C001,Screws TX20 4x40,pcs,10, 0.04
+ACME_2025,C013,Cable ties 200mm,pcs,300, 0.2
+ACME_2025,C019,Work gloves size 9,pairs,50, 0.99
+ACME_2025,C025,Painter fleece roll,roll,10, 0.6
+ACME_2025,C029,Marking spray red,can,20, 0.2
+ACME_2025,C035,PU foam,can,25, 0.3
+ACME_2025,C046,Trash bags 120L,pcs,200, 0.5
+ACME_2025,C056,LED site lamp,pcs,5, 0.1

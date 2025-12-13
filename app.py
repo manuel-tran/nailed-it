@@ -32,49 +32,62 @@ else:
 # 2. Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "message_internal_flags" not in st.session_state:
+    st.session_state.message_internal_flags = []
+if "precheck_done" not in st.session_state:
+    st.session_state.precheck_done = False
+if "precheck_in_progress" not in st.session_state:
+    st.session_state.precheck_in_progress = False
 
 # Hidden System Prompt (not shown to users)
 SYSTEM_PROMPT = """
-You are an expert Procurement Assistant. Your role is to identify materials, verify contract details, and manage orders using specific tools. You are professional, efficient, and precise.
+You are an expert Procurement Assistant. Your role is to identify materials, verify contract details, monitor inventory, and manage orders using specific tools. You are professional, efficient, and precise.
 
 <workflow_steps>
 
+0. **Inventory Pre-Check** (run before answering)
+    - Call `read_csv` with dataset="inventory" to inspect current stock and storage percentages.
+    - If any item has storage < 5%, ask the user if you should place an order for that item right away.
+
 1. **Input Analysis**
-   - If the user provides text: Identify the item name and requested quantity.
-   - If the user provides an image: Analyze the image in high detail. Describe visual features, brand markings, or specifications to identify the item.
-   - If the quantity is missing, ask the user to specify it before proceeding.
+    - If the user provides text: Identify the item name and requested quantity.
+    - If the user provides an image: Analyze the image in high detail. Describe visual features, brand markings, or specifications to identify the item.
+    - If the quantity is missing, ask the user to specify it before proceeding.
 
-2. **Database Lookup**
-   - Use the `read_csv` tool to search for the identified item.
-   - Retrieve the: 'Unit Cost', 'Supplier Email', 'Total Contract Limit', and 'Used Amount'.
+2. **Database Lookup (Contracts)**
+    - Use the `read_csv` tool with dataset="contracts" to search for the identified item.
+    - Retrieve: 'Unit Cost', 'Supplier Email', 'Total Contract Limit', and 'Used Amount'.
 
-3. **Availability & Logic Check**
-   - STRICTLY check availability first: Calculate (Total Contract Limit - Used Amount).
-   - Compare this result against the user's requested quantity.
+3. **Inventory Guardrails for New Orders**
+    - For each user order request, call `read_csv` with dataset="inventory" to check stock.
+    - If the item is already high stock (> 90% storage), ask for confirmation before proceeding.
+    - Then, check contract availability: Calculate (Total Contract Limit - Used Amount) and compare to requested quantity.
 
-   **Branch A: Insufficient Funds/Quantity**
-   - If the requested amount exceeds the remaining contract limit:
-   - Do NOT offer to order via the contract.
-   - Immediately use the `call_local_store` tool to arrange the missing items.
-   - Inform the user you have contacted the local store.
+    **Branch A: Insufficient Funds/Quantity**
+    - If the requested amount exceeds the remaining contract limit:
+    - Do NOT offer to order via the contract.
+    - Propose contacting the local store and ask for explicit confirmation first.
+    - Only after the user confirms, use the `call_local_store` tool to arrange the missing items and then inform the user.
 
-   **Branch B: Sufficient Funds/Quantity**
-   - Use the `calculate` tool to determine the Total Price (Unit Cost * Requested Quantity).
-   - Present the item found, the Unit Cost, and the Total Price to the user.
-   - Ask for explicit confirmation to proceed.
+    **Branch B: Sufficient Funds/Quantity**
+    - Use the `calculate` tool to determine the Total Price (Unit Cost * Requested Quantity).
+    - Present the item found, the Unit Cost, and the Total Price to the user.
+    - Ask for explicit confirmation to proceed.
 
 4. **Execution (Only after User Confirmation)**
-   - Once the user confirms the order:
-   - A) Write an email to the 'Supplier Email' retrieved from the CSV placing the order. for now use johndoe@test.de as email address.
-   - B) Use the `update_used` tool to add the order cost/amount to the 'Used' column in the CSV.
-   - C) Confirm to the user that the order has been placed and the contract record updated.
+    - Once the user confirms the order:
+    - A) Write an email to the 'Supplier Email' retrieved from the CSV placing the order. For now use johndoe@test.de as email address.
+    - B) Use the `update_used` tool to add the order cost/amount to the 'Used' column in the CSV.
+    - C) Confirm to the user that the order has been placed and the contract record updated.
+    - D) Immediately ask the user if they want to order anything else and be ready to repeat the workflow.
 
 </workflow_steps>
 
 <guidelines>
 - Always use the `calculate` tool for math; do not calculate mentally.
 - Never place an order or update the CSV without explicit user confirmation.
-- If an item is not found in the CSV at all, inform the user and ask for the correct item name or SKU.
+- If an item is not found in the contracts CSV, inform the user and ask for the correct item name or SKU.
+- If storage data is missing for an item, continue without storage-based warnings for that item.
 </guidelines>
 """
 
@@ -159,7 +172,9 @@ if uploaded_file and st.session_state.get("last_uploaded_file") != uploaded_file
     st.rerun()
 
 # 5. Display Chat History
-for message in st.session_state.messages:
+for message, is_internal in zip(st.session_state.messages, st.session_state.message_internal_flags):
+    if is_internal:
+        continue
     with st.chat_message(message["role"]):
         if isinstance(message["content"], str):
             st.markdown(message["content"])
@@ -191,8 +206,20 @@ for message in st.session_state.messages:
 should_respond = st.session_state.pop("trigger_response", False)
 display_user_message = False
 
+# Run one-time inventory pre-check before any user interaction
+if not st.session_state.precheck_done:
+    st.session_state.precheck_in_progress = True
+    st.session_state.messages.append({
+        "role": "user",
+        "content": "Run startup inventory pre-check (dataset=inventory). List items under 5% storage and ask to place orders for them. Keep it concise."
+    })
+    st.session_state.message_internal_flags.append(True)
+    st.session_state.precheck_done = True
+    should_respond = True
+
 if prompt := st.chat_input("Ask a question..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.message_internal_flags.append(False)
     should_respond = True
     display_user_message = True
 
@@ -228,6 +255,7 @@ if should_respond:
                     "role": "assistant",
                     "content": final_message.content
                 })
+                st.session_state.message_internal_flags.append(False)
 
                 if final_message.stop_reason == "tool_use":
                     tool_use_count += 1
@@ -246,7 +274,8 @@ if should_respond:
                         if tool_name == "calculate":
                             result = calculate(tool_input["expression"])
                         elif tool_name == "read_csv":
-                            result = read_csv()
+                            dataset = tool_input.get("dataset", "contracts") if tool_input else "contracts"
+                            result = read_csv(dataset)
                         elif tool_name == "update_used":
                             result = update_used(tool_input["product_id"], tool_input["used_quantity"])
                         elif tool_name == "call_local_store":
@@ -264,6 +293,7 @@ if should_respond:
                                 "content": str(result)
                             }]
                         })
+                        st.session_state.message_internal_flags.append(st.session_state.get("precheck_in_progress", False))
                     
                     full_text = ""
                 else:
@@ -275,3 +305,23 @@ if should_respond:
         
         if tool_use_count >= max_tool_iterations:
             st.warning("⚠️ Maximum tool use iterations reached.")
+
+    # Clear precheck flag after response cycle
+    if st.session_state.get("precheck_in_progress"):
+        st.session_state.precheck_in_progress = False
+
+# 7. Quick Confirm UI (Yes/No)
+# Always show confirmation buttons to streamline replies.
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("✅ Yes"):
+        st.session_state.messages.append({"role": "user", "content": "Yes, proceed with the action."})
+        st.session_state.message_internal_flags.append(False)
+        st.session_state["trigger_response"] = True
+        st.rerun()
+with c2:
+    if st.button("❌ No"):
+        st.session_state.messages.append({"role": "user", "content": "No, cancel this action."})
+        st.session_state.message_internal_flags.append(False)
+        st.session_state["trigger_response"] = True
+        st.rerun()
