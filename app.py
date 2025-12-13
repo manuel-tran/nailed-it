@@ -27,7 +27,7 @@ def read_csv():
     """Reads the database CSV file and returns its contents as a formatted string."""
     try:
         # Hardcoded path to the database CSV file
-        file_path = "database.csv"
+        file_path = "sample.csv"
         df = pd.read_csv(file_path)
         
         # Return summary of the CSV
