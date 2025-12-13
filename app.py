@@ -27,7 +27,7 @@ def read_csv():
     """Reads the database CSV file and returns its contents as a formatted string."""
     try:
         # Hardcoded path to the database CSV file
-        file_path = "sample.csv"
+        file_path = "contracts.csv"
         df = pd.read_csv(file_path)
         
         # Return summary of the CSV
@@ -41,6 +41,47 @@ def read_csv():
     except Exception as e:
         return f"Error reading CSV: {e}"
 
+def update_used(product_id, used_quantity):
+    """Updates the 'used' column for a specific product in contracts.csv."""
+    try:
+        file_path = "contracts.csv"
+        df = pd.read_csv(file_path)
+        
+        # Find the product by product_id
+        if product_id not in df['product_id'].values:
+            return f"Error: Product ID '{product_id}' not found in database"
+        
+        # Get the row index
+        idx = df[df['product_id'] == product_id].index[0]
+        
+        # Get current values
+        current_used = df.loc[idx, 'used']
+        total_quantity = df.loc[idx, 'quantity']
+        new_used = current_used + used_quantity
+        
+        # Check if we're exceeding available quantity
+        if new_used > total_quantity:
+            available = total_quantity - current_used
+            return f"Error: Cannot use {used_quantity} units. Only {available} units available (total: {total_quantity}, already used: {current_used})"
+        
+        # Update the used column
+        df.loc[idx, 'used'] = new_used
+        
+        # Save back to CSV
+        df.to_csv(file_path, index=False)
+        
+        # Return success message with details
+        product_name = df.loc[idx, 'product_name']
+        remaining = total_quantity - new_used
+        result = f"✅ Updated {product_name} (ID: {product_id})\n"
+        result += f"Used: {used_quantity} units\n"
+        result += f"Total used: {new_used}/{total_quantity}\n"
+        result += f"Remaining: {remaining} units"
+        return result
+    except Exception as e:
+        return f"Error updating CSV: {e}"
+
+
 tool_definitions = [
     {
         "name": "calculate",
@@ -53,11 +94,29 @@ tool_definitions = [
     },
     {
         "name": "read_csv",
-        "description": "Reads and analyzes the employee database CSV file. Returns column names, shape, first 10 rows, data types, and basic statistics.",
+        "description": "Reads and analyzes the contracts database CSV file. Returns column names, shape, first 10 rows, data types, and basic statistics.",
         "input_schema": {
             "type": "object",
             "properties": {},
             "required": []
+        }
+    },
+    {
+        "name": "update_used",
+        "description": "Updates the 'used' column for a product in contracts.csv. Validates that the requested quantity doesn't exceed available inventory. Use this when a user orders or consumes items.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID (e.g., 'C001', 'C013')"
+                },
+                "used_quantity": {
+                    "type": "integer",
+                    "description": "The quantity to add to the 'used' column (positive number)"
+                }
+            },
+            "required": ["product_id", "used_quantity"]
         }
     }
 ]
@@ -156,7 +215,7 @@ if prompt := st.chat_input("Ask a question..."):
                     max_tokens=1024,
                     messages=st.session_state.messages,
                     tools=tool_definitions,
-                    system="You are a helpful assistant with access to a calculator and a database CSV reader."
+                    system="You are a helpful assistant with access to a calculator, a contracts database CSV reader, and an inventory update tool. Help users track and manage their contract inventory."
                 ) as stream:
                     for text in stream.text_stream:
                         full_text += text
@@ -193,6 +252,8 @@ if prompt := st.chat_input("Ask a question..."):
                             result = calculate(tool_input["expression"])
                         elif tool_name == "read_csv":
                             result = read_csv()
+                        elif tool_name == "update_used":
+                            result = update_used(tool_input["product_id"], tool_input["used_quantity"])
                         
                         st.success(f"✅ Result: {result}")
                         
