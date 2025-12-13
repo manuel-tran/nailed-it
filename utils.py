@@ -59,6 +59,24 @@ tool_definitions = [
             },
             "required": ["item_name", "quantity"]
         }
+    },
+    {
+        "name": "send_order_email",
+        "description": "Sends an order email to the supplier after user confirmation. Retrieves supplier info from contracts.csv and sends formatted purchase order email.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID from contracts (e.g., 'C001')"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "description": "The quantity to order"
+                }
+            },
+            "required": ["product_id", "quantity"]
+        }
     }
 ]
 
@@ -200,3 +218,193 @@ def transcribe_audio_with_elevenlabs(audio_bytes):
         return "Error: elevenlabs package not installed. Run: pip install elevenlabs"
     except Exception as e:
         return f"Transcription error: {str(e)[:200]}"  # Truncate long errors
+
+
+def get_supplier_info(supplier_id):
+    """
+    Retrieves supplier information from suppliers.csv.
+    
+    Args:
+        supplier_id: The supplier ID (e.g., 'SUP001')
+        
+    Returns:
+        dict: Supplier information or error message
+    """
+    try:
+        df = pd.read_csv("suppliers.csv")
+        supplier = df[df['supplier_id'] == supplier_id]
+        
+        if supplier.empty:
+            return {"error": f"Supplier {supplier_id} not found"}
+        
+        return supplier.iloc[0].to_dict()
+    except Exception as e:
+        return {"error": f"Error reading supplier data: {e}"}
+
+
+def send_order_email(to_email, supplier_name, product_name, quantity, unit_price, total_price, delivery_days):
+    """
+    Sends an order email to the supplier.
+    
+    Args:
+        to_email: Supplier email address
+        supplier_name: Name of the supplier
+        product_name: Name of the product
+        quantity: Quantity to order
+        unit_price: Price per unit
+        total_price: Total order price
+        delivery_days: Expected delivery days
+        
+    Returns:
+        str: Success or error message
+    """
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        import streamlit as st
+        
+        # Get email credentials from secrets
+        if "SMTP_EMAIL" not in st.secrets or "SMTP_PASSWORD" not in st.secrets:
+            return "Error: Email credentials not configured in secrets.toml"
+        
+        sender_email = st.secrets["SMTP_EMAIL"]
+        sender_password = st.secrets["SMTP_PASSWORD"]
+        smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
+        smtp_port = st.secrets.get("SMTP_PORT", 587)
+        
+        # Create email
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        msg['Subject'] = f"Purchase Order - {product_name}"
+        
+        # Email body
+        body = f"""
+Dear {supplier_name},
+
+We would like to place the following order:
+
+Product: {product_name}
+Quantity: {quantity}
+Unit Price: €{unit_price:.2f}
+Total Price: €{total_price:.2f}
+
+Expected Delivery: {delivery_days} working days
+
+Please confirm receipt of this order and provide an estimated delivery date.
+
+Best regards,
+Example Build AG
+Procurement Department
+
+---
+Order Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+"""
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        
+        return f"✅ Order email sent successfully to {to_email} (from {sender_email})"
+        
+    except Exception as e:
+        return f"Error sending email: {str(e)}"
+
+
+def extract_contract_from_pdf(pdf_file):
+    """
+    Extracts text from a PDF file.
+    
+    Args:
+        pdf_file: Uploaded file object
+        
+    Returns:
+        str: Extracted text
+    """
+    try:
+        import pypdf
+        
+        pdf_reader = pypdf.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+            
+        return text
+    except Exception as e:
+        return f"Error extracting PDF: {e}"
+
+
+def parse_contract_to_df(text, api_key):
+    """
+    Parses contract text into a DataFrame matching contracts.csv schema using Claude.
+    
+    Args:
+        text: Raw contract text
+        api_key: Anthropic API key
+        
+    Returns:
+        pd.DataFrame: Parsed contract data
+    """
+    try:
+        import anthropic
+        import json
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        prompt = f"""
+        Extract the contract data from the text below into a JSON format that matches this CSV schema:
+        
+        Columns: 
+        - contract_id (Extract from date or ID, e.g., ACME_2025)
+        - product_id
+        - product_name
+        - unit
+        - quantity (Total contract quantity)
+        - unit_price_eur
+        - line_total_eur
+        - is_c_item (Set to true)
+        - used (Set strictly to 0)
+        - supplier_id (Generate a generic ID like SUP_NEW if unknown, or extract)
+        - payment_terms
+        - delivery_days (Extract number of days)
+        
+        Return ONLY valid JSON list of objects. No other text.
+        
+        Contract Text:
+        {text}
+        """
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        json_str = response.content[0].text
+        
+        # Robust JSON extraction: Strip markdown code blocks
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0].strip()
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0].strip()
+            
+        # Ensure we only try to parse the array
+        start_idx = json_str.find('[')
+        end_idx = json_str.rfind(']')
+        
+        if start_idx != -1 and end_idx != -1:
+            json_str = json_str[start_idx:end_idx+1]
+        
+        data = json.loads(json_str)
+        
+        df = pd.DataFrame(data)
+        return df
+        
+    except Exception as e:
+        return f"Error parsing contract: {e}"

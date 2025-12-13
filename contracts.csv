@@ -1,9 +1,9 @@
-contract_id,product_id,product_name,unit,quantity,unit_price_eur,line_total_eur,is_c_item,used
-ACME_2025,C001,Screws TX20 4x40,pcs,500,0.08,40.0,True,10
-ACME_2025,C013,Cable ties 200mm,pcs,300,0.06,18.0,True,0
-ACME_2025,C019,Work gloves size 9,pairs,50,2.5,125.0,True,5
-ACME_2025,C025,Painter fleece roll,roll,10,18.0,180.0,True,0
-ACME_2025,C029,Marking spray red,can,20,7.2,144.0,True,0
-ACME_2025,C035,PU foam,can,25,6.5,162.5,True,0
-ACME_2025,C046,Trash bags 120L,pcs,200,0.8,160.0,True,0
-ACME_2025,C056,LED site lamp,pcs,5,29.0,145.0,True,0
+contract_id,product_id,product_name,unit,quantity,unit_price_eur,line_total_eur,is_c_item,used,supplier_id,payment_terms,delivery_days
+ACME_2025,C001,Screws TX20 4x40,pcs,750,0.09,67.5,True,20,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C013,Cable ties 200mm,pcs,500,0.07,35.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C019,Work gloves size 9,pairs,80,2.8,224.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C025,Painter fleece roll,roll,14,19.5,273.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C029,Marking spray red,can,30,7.8,234.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C035,PU foam,can,40,6.9,276.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C046,Trash bags 120L,pcs,300,0.85,255.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
+ACME_2025,C056,LED site lamp,pcs,8,31.0,248.0,True,0,ACME_CONSTRUCTION,Net 45 days from invoice date,7
