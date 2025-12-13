@@ -12,7 +12,8 @@ from utils import (
 
 from utils import tool_definitions
 
-st.title("Claude 4.5 Chatbot (Images, Text & Voice)")
+st.title("🔩 NAIled It – Procurement Assistant for C Materials")
+st.caption("C materials are consumable, low-value items like fasteners, nails, screws, and small parts used across projects.")
 
 # 1. Initialize the Anthropic Client
 if "ANTHROPIC_API_KEY" in st.secrets:
