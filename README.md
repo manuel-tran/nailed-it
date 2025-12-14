@@ -105,7 +105,7 @@ The app will open in your browser at `http://localhost:8501`
 The application uses CSV files for data management:
 
 - **database.csv** - Inventory of available items
-- **contracts.csv** - Contract details and terms
+- **contracts.csv** - Contract details and terms (Can be created with contract pdf upload)
 - **inventory.csv** - Current inventory levels
 
 ## Troubleshooting
