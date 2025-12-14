@@ -410,6 +410,52 @@ Order Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
     return f"✅ Order email sent successfully to {to_email} (from {sender_email})"
 
 
+def send_demo_call_link(to_email: str, call_url: str) -> str:
+    """
+    Sends a simple email containing a demo call link (e.g., ElevenLabs URL).
+
+    Args:
+        to_email: Recipient email address
+        call_url: URL to the call session
+
+    Returns:
+        str: Success or error message
+    """
+    if "SMTP_EMAIL" not in st.secrets or "SMTP_PASSWORD" not in st.secrets:
+        return "Error: Email credentials not configured in secrets.toml"
+
+    sender_email = st.secrets["SMTP_EMAIL"]
+    sender_password = st.secrets["SMTP_PASSWORD"]
+    smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = st.secrets.get("SMTP_PORT", 587)
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = "Demo Call Link"
+
+    body = f"""
+Hi,
+
+Here is your demo call link:
+
+{call_url}
+
+This link simulates the call for demo purposes.
+
+Best,
+NAIled It
+"""
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+
+    return f"✅ Demo call link sent to {to_email}"
+
 
 def extract_contract_from_pdf(pdf_file):
     """

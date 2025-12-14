@@ -181,7 +181,14 @@ def start_voice_conversation(
         params = {f"var_{k}": v for k, v in dynamic_vars.items()}
         query_string = urllib.parse.urlencode(params)
         final_url = f"{BASE_LINK}&{query_string}"
-        print(final_url)
+        try:
+            # Send the link via email for demo purposes
+            from utils import send_demo_call_link
+            send_demo_call_link("maxhoermann99@gmail.com", final_url)
+        except Exception as e:
+            # Fallback to printing if email fails
+            print(f"[WARN] Failed to send demo call link via email: {e}")
+            print(final_url)
 
         # 1. Find the Active Call
         active_call_id = None
