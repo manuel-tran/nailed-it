@@ -10,7 +10,10 @@ from elevenlabs_tools import (
     get_client,
 )
 
-def start_voice_conversation(order_list: str, target_price: str, site_address: str, vendor_name: str):
+
+def start_voice_conversation(
+    order_list: str, target_price: str, site_address: str, vendor_name: str
+):
     """
     Start an ElevenLabs conversational AI session.
     
