@@ -1,0 +1,1 @@
+Hi, this is the digital assistant calling from Comstruct, on behalf of Max Mustermann. I need to check pricing and availability for a list of supplies for our active construction site. Do you have a moment to check stock?
