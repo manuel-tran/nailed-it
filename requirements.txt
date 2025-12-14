@@ -1,0 +1,6 @@
+streamlit>=1.28.0
+anthropic>=0.7.0
+elevenlabs>=0.2.10
+pandas>=2.0.0
+pyaudio>=0.2.13
+pypdf>=3.17.0
