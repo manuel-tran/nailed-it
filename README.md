@@ -103,9 +103,8 @@ The app will open in your browser at `http://localhost:8501`
 
 ### Voice Conversation Features
 
-- Speak into your microphone for voice-based ordering
-- Press `Ctrl+C` to stop the conversation
-- The assistant will auto-end after 60 seconds of silence or on farewell phrases
+- Simulates orderning at "local store"
+- Needs email address to sent call url in elevenlabs_tools.py line 187 set.
 
 ## Data Files
 

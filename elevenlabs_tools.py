@@ -184,7 +184,7 @@ def start_voice_conversation(
         try:
             # Send the link via email for demo purposes
             from utils import send_demo_call_link
-            send_demo_call_link("maxhoermann99@gmail.com", final_url)
+            send_demo_call_link("demo@demo.com", final_url)
         except Exception as e:
             # Fallback to printing if email fails
             print(f"[WARN] Failed to send demo call link via email: {e}")
