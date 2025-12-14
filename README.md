@@ -27,6 +27,13 @@ A Streamlit-based procurement assistant that helps with ordering consumable mate
 
 ## Setup Instructions
 
+### 0. Get the Code
+
+```bash
+git clone https://github.com/manuel-tran/nailed-it.git
+cd nailed-it
+```
+
 ### 1. Install System Dependencies
 
 Before installing Python packages, you need to install PortAudio (required for PyAudio):
