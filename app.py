@@ -389,6 +389,11 @@ if should_respond:
                                 # Show only the first line (summary) without the full transcript
                                 summary = result.split("\n\nTranscript:")[0] if "\n\nTranscript:" in result else result
                                 st.success(f"✅ Result: {summary}")
+                            # Always show call link to user (first line of result)
+                            link_line = result.splitlines()[0] if result else ""
+                            if link_line:
+                                st.session_state.messages.append({"role": "assistant", "content": link_line})
+                                st.session_state.message_internal_flags.append(False)
                         elif tool_name == "send_order_email":
                             result = order_product(tool_input["product_id"], tool_input["quantity"])
                         else:

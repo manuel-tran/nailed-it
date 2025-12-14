@@ -1,4 +1,4 @@
 supplier_id,supplier_name,contact_email,phone,address,payment_terms,delivery_days,specialization
 ACME_CS_GmbH,ACME Construction Supplies GmbH,denizetase@gmail.com,+49-30-12345678,"Baustraße 42, 10115 Berlin, Germany",Net 30,5,General Construction Materials
-ACME_GmbH,ACME GmbH,denizetase@gmail.com,+49-30-12345678,"Baustraße 42, 10115 Berlin, Germany",Net 30,5,General Construction Materials
+ACME_GmbH,ACME GmbH,johndoe@gmail.com,+49-30-12345678,"Baustraße 42, 10115 Berlin, Germany",Net 30,5,General Construction Materials
 ExampleSup,Example Supplies,example@test.com,+1-555-0192,"123 Building St",Net 30,5,General

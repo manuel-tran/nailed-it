@@ -236,7 +236,7 @@ def call_local_store(item_name: str, quantity: int) -> str:
         vendor_name = "Local Hardware Store"
         
         # Start the voice conversation with the agent
-        print(f"🎤 Initiating voice call for {quantity} units of '{item_name}'...")
+        print(f"🎤 Generating phone link for {quantity} units of '{item_name}'...")
         
         conversation_info = start_voice_conversation(
             order_list=order_list,
@@ -248,15 +248,18 @@ def call_local_store(item_name: str, quantity: int) -> str:
         conversation_id = conversation_info.get("conversation_id") if isinstance(conversation_info, dict) else conversation_info
         transcript = conversation_info.get("transcript", "") if isinstance(conversation_info, dict) else ""
         success = conversation_info.get("success", bool(conversation_id)) if isinstance(conversation_info, dict) else bool(conversation_id)
+        call_url = conversation_info.get("call_url", "") if isinstance(conversation_info, dict) else ""
+
+        # Always surface the call URL so the user can tap it
+        msg = f"📞 Open this link on your phone to talk to the store agent: {call_url if call_url else '[link unavailable]'}"
 
         if success and conversation_id:
-            msg = f"📞 Voice call completed for {quantity} units of '{item_name}'. Conversation ID: {conversation_id}"
-            # Keep transcript in tool result for Claude to process, but don't display in UI
+            msg += f"\n\n✅ Call completed. Conversation ID: {conversation_id}"
             if transcript:
                 msg += f"\n\nTranscript: {transcript}"
-            return msg
         else:
-            return f"📞 Voice call initiated for {quantity} units of '{item_name}' but was interrupted."
+            msg += "\n\n⏳ Waiting for the call to finish or no completed call detected yet."
+        return msg
             
     except Exception as e:
         # Fallback to placeholder if voice call fails
