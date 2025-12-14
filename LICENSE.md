@@ -25,4 +25,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 For licensing inquiries beyond the hackathon scope, contact:
-- Korbinian Träuble (korbinian.traeuble@outlook.de)
+- Korbinian Träuble (korbinian.traeuble at outlook.de)
