@@ -1,6 +1,6 @@
 # NAIled It Software License
 
-Copyright (c) 2025 Manuel Tran, Korbinian Träuble, Maximilian Hörmann, Deniz Taş. All rights reserved.
+Copyright (c) 2025 Manuel Tran, Korbinian Träuble, Maximilian Hörmann, Zehra Deniz Taş. All rights reserved.
 
 Permission is hereby granted to the Hackathon organizers and participants to
 use, run, and evaluate the NAIled It software solely for the purposes of the
