@@ -27,6 +27,13 @@ A Streamlit-based procurement assistant that helps with ordering consumable mate
 
 ## Setup Instructions
 
+### 0. Get the Code
+
+```bash
+git clone https://github.com/manuel-tran/nailed-it.git
+cd nailed-it
+```
+
 ### 1. Install System Dependencies
 
 Before installing Python packages, you need to install PortAudio (required for PyAudio):
@@ -105,7 +112,7 @@ The app will open in your browser at `http://localhost:8501`
 The application uses CSV files for data management:
 
 - **database.csv** - Inventory of available items
-- **contracts.csv** - Contract details and terms
+- **contracts.csv** - Contract details and terms (Can be created with contract pdf upload)
 - **inventory.csv** - Current inventory levels
 
 ## Troubleshooting

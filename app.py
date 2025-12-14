@@ -344,6 +344,7 @@ if should_respond:
                 with client.messages.stream(
                     model="claude-sonnet-4-5-20250929",
                     max_tokens=1024,
+                    temperature=0,
                     messages=st.session_state.messages,
                     tools=tool_definitions,
                     system=SYSTEM_PROMPT
